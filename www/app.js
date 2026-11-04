@@ -1,7 +1,7 @@
 // Solicitações de Compra — Grupo Zerbini
 // Colaborador solicita → Financeiro aprova → quem compra registra → solicitante anexa o comprovante → Financeiro confere e finaliza.
 "use strict";
-const VERSAO = "1.0.2";
+const VERSAO = "1.1.0";
 const sb = supabase.createClient(FC_CONFIG.supabaseUrl, FC_CONFIG.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true } });
 const BUCKET = "compras", MAX_MB = 15;
 
@@ -35,12 +35,14 @@ const pill = s => { const [l, c] = ST[s.status] || [s.status, "st-desc"]; return
 const QUEM = { financeiro: "O Financeiro", solicitante: "O próprio solicitante" };
 const isFin = () => S.eu && ["financeiro", "admin"].includes(S.eu.papel);
 const isAdmin = () => S.eu && S.eu.papel === "admin";
+const isComprador = () => S.eu && S.eu.papel === "comprador";
+const veTudo = () => isFin() || isComprador();
 const dono = s => S.eu && s.solicitante_email === S.eu.email;
 const comprovantes = s => (s.fc_anexos || []).filter(a => a.tipo === "comprovante").sort((a, b) => a.id - b.id);
 const orcamentos = s => (s.fc_anexos || []).filter(a => a.tipo === "orcamento").sort((a, b) => a.id - b.id);
 const itensDe = s => (s.fc_itens || []).slice().sort((a, b) => a.ordem - b.ordem || a.id - b.id);
 const valorRef = s => s.valor_pago ?? s.valor_estimado;
-const podeRegistrarCompra = s => ["aprovada", "comprada"].includes(s.status) && (isFin() || (dono(s) && s.quem_compra === "solicitante"));
+const podeRegistrarCompra = s => ["aprovada", "comprada"].includes(s.status) && (veTudo() || (dono(s) && s.quem_compra === "solicitante"));
 const podeComprovante = s => ["aprovada", "comprada"].includes(s.status) && (dono(s) || isAdmin());
 
 function toast(msg, ms = 3200) {
@@ -143,6 +145,10 @@ const VIEWS = () => [
     ["andamento", "Em andamento", "clock", S.sols.filter(s => ["aprovada", "comprada", "reprovada"].includes(s.status)).length, true],
     ["todas", "Todas", "list", null],
   ] : []),
+  ...(isComprador() ? [
+    ["andamento", "Para comprar", "cart", S.sols.filter(s => s.status === "aprovada" && s.quem_compra === "financeiro").length],
+    ["todas", "Todas", "list", null],
+  ] : []),
   ["minhas", "Minhas solicitações", "cart", S.sols.filter(s => dono(s) && (s.status === "reprovada" || s.status === "comprada" || (s.status === "aprovada" && s.quem_compra === "solicitante"))).length],
   ...(isAdmin() ? [["config", "Configurações", "gear", null]] : []),
 ];
@@ -158,15 +164,15 @@ function irPara(v) { S.view = v; S.det = null; history.pushState(null, "", "#v/"
 function render() {
   const root = $("root");
   if (!S.eu) { root.innerHTML = gateHTML(); return; }
-  const vs = VIEWS(); if (!vs.some(v => v[0] === S.view)) S.view = isFin() ? "painel" : "minhas";
+  const vs = VIEWS(); if (!vs.some(v => v[0] === S.view)) S.view = isFin() ? "painel" : isComprador() ? "andamento" : "minhas";
   const corpo = { painel: painelHTML, aprovacoes: aprovacoesHTML, conferencia: conferenciaHTML, andamento: andamentoHTML, todas: todasHTML, minhas: minhasHTML, config: configHTML }[S.view]();
   const foco = document.activeElement && document.activeElement.id === "fq" ? document.activeElement.selectionStart : null;
   root.innerHTML = `<div class="app"><aside class="side">
     <div class="brand"><div class="logo"><img src="img/logo-128.png" alt=""></div><div><b>Solicitações de Compra</b><small>Grupo Zerbini</small></div></div>
     <div class="bar3"></div>
-    ${isFin() ? `<div class="navlabel">Financeiro</div>` : `<div class="navlabel">Compras</div>`}
-    <nav class="navs">${vs.map(([k, l, ic, n, soft]) => `${k === "minhas" && isFin() ? `<div class="navlabel" style="padding-left:10px">Você</div>` : ""}<button class="nav ${S.view === k ? "on" : ""}" data-act="go" data-v="${k}">${ICON(ic)}${esc(l)}${n ? `<span class="n ${soft ? "soft" : ""}">${n}</span>` : ""}</button>`).join("")}</nav>
-    <div class="me"><div class="av">${S.eu.foto ? `<img src="${esc(S.eu.foto)}" alt="">` : esc(iniciais(S.eu.nome))}</div><div class="who" title="${esc(S.eu.nome)}"><b>${esc(S.eu.nome)}</b><small>${esc({ admin: "Administrador", financeiro: "Financeiro", solicitante: "Colaborador" }[S.eu.papel] || "")}</small></div>
+    ${isFin() ? `<div class="navlabel">Financeiro</div>` : isComprador() ? `<div class="navlabel">Compras</div>` : `<div class="navlabel">Solicitações</div>`}
+    <nav class="navs">${vs.map(([k, l, ic, n, soft]) => `${k === "minhas" && veTudo() ? `<div class="navlabel" style="padding-left:10px">Você</div>` : ""}<button class="nav ${S.view === k ? "on" : ""}" data-act="go" data-v="${k}">${ICON(ic)}${esc(l)}${n ? `<span class="n ${soft ? "soft" : ""}">${n}</span>` : ""}</button>`).join("")}</nav>
+    <div class="me"><div class="av">${S.eu.foto ? `<img src="${esc(S.eu.foto)}" alt="">` : esc(iniciais(S.eu.nome))}</div><div class="who" title="${esc(S.eu.nome)}"><b>${esc(S.eu.nome)}</b><small>${esc({ admin: "Administrador", financeiro: "Financeiro", comprador: "Comprador", solicitante: "Colaborador" }[S.eu.papel] || "")}</small></div>
       <div class="tools"><button class="ib" data-act="tema" title="Tema claro/escuro" aria-label="Alternar tema">${ICON("moon")}</button>
       <button class="ib" data-act="sair" title="Sair" aria-label="Sair">${ICON("logout")}</button></div></div>
   </aside><main>${corpo}</main></div>`;
@@ -180,7 +186,7 @@ function proximoPasso(s) {
     case "reprovada": return d ? "Ajuste e reenvie, ou cancele" : "Aguardando o solicitante ajustar";
     case "aprovada":
       if (s.quem_compra === "solicitante") return d ? "Faça a compra e anexe o comprovante" : "Solicitante vai comprar e anexar o comprovante";
-      return fin ? "Fazer a compra e registrar" : "Aguardando o Financeiro comprar";
+      return veTudo() ? "Fazer a compra e registrar" : "Aguardando o Financeiro comprar";
     case "comprada": return d ? "Quando receber, anexe o comprovante" : "Aguardando o comprovante do solicitante";
     case "comprovante_enviado": return fin ? "Conferir o comprovante e finalizar" : "O Financeiro está conferindo o comprovante";
     default: return "";
@@ -211,7 +217,7 @@ function botoes(s, compacto) {
   if (s.status === "aguardando_aprovacao" && fin) x.push(b("decidir", "check", "Aprovar ou reprovar", "primary"));
   if (s.status === "comprovante_enviado" && fin) x.push(b("conferir", "file", "Conferir comprovante", "primary"));
   if (podeComprovante(s)) x.push(b("comprovante", "clip", s.devolucoes ? "Anexar novo comprovante" : "Anexar comprovante", d ? "primary" : ""));
-  if (podeRegistrarCompra(s)) x.push(b("compra", "cart", s.status === "comprada" ? "Atualizar compra" : "Registrar compra", fin && s.quem_compra === "financeiro" && s.status === "aprovada" ? "primary" : ""));
+  if (podeRegistrarCompra(s)) x.push(b("compra", "cart", s.status === "comprada" ? "Atualizar compra" : "Registrar compra", veTudo() && s.quem_compra === "financeiro" && s.status === "aprovada" ? "primary" : ""));
   if (d && ["aguardando_aprovacao", "reprovada"].includes(s.status)) x.push(b("editar", "edit", s.status === "reprovada" ? "Ajustar e reenviar" : "Editar", s.status === "reprovada" ? "primary" : ""));
   if (!compacto && ((d && ["aguardando_aprovacao", "reprovada", "aprovada"].includes(s.status)) || (fin && ABERTAS.includes(s.status)))) x.push(b("cancelar", "x", "Cancelar", "ghost"));
   return x.join("");
@@ -248,14 +254,15 @@ function conferenciaHTML() {
 }
 function andamentoHTML() {
   const grupos = [
-    ["Para o Financeiro comprar", S.sols.filter(s => s.status === "aprovada" && s.quem_compra === "financeiro")],
+    [isComprador() ? "Aprovadas para comprar" : "Para o Financeiro comprar", S.sols.filter(s => s.status === "aprovada" && s.quem_compra === "financeiro")],
     ["Solicitante vai comprar", S.sols.filter(s => s.status === "aprovada" && s.quem_compra === "solicitante")],
     ["Compradas · aguardando comprovante", S.sols.filter(s => s.status === "comprada").sort((a, b) => String(a.previsao || "9").localeCompare(String(b.previsao || "9")))],
     ["Reprovadas · aguardando ajuste do solicitante", S.sols.filter(s => s.status === "reprovada")],
   ];
+  if (isComprador()) grupos.splice(0, grupos.length, grupos[0], grupos[2]); // comprador vê só o que é para comprar e o que já comprou
   const n = grupos.reduce((a, g) => a + g[1].length, 0);
-  return `<div class="head"><div><h1>Em andamento</h1><div class="sub">${n ? `${n} ${n === 1 ? "solicitação" : "solicitações"} entre a aprovação e o comprovante` : "Nada em andamento"}</div></div></div>
-    ${n ? grupos.filter(g => g[1].length).map(([t, l]) => `<h2 style="color:var(--heading);font-size:17px;margin:20px 0 10px">${esc(t)} <span class="muted" style="font-weight:600">(${l.length})</span></h2><div class="sols">${l.map(s => solCard(s, { acoes: true })).join("")}</div>`).join("") : vazio("Nada em andamento", "Solicitações aprovadas aparecem aqui até o comprovante ser enviado.")}`;
+  return `<div class="head"><div><h1>${isComprador() ? "Para comprar" : "Em andamento"}</h1><div class="sub">${isComprador() ? `${grupos[0][1].length ? `${grupos[0][1].length} para comprar · ${brl(total(grupos[0][1])) || "sem valor"}` : "Nada para comprar agora"}${grupos[1][1].length ? ` · ${grupos[1][1].length} já ${grupos[1][1].length === 1 ? "comprada" : "compradas"}` : ""}` : n ? `${n} ${n === 1 ? "solicitação" : "solicitações"} entre a aprovação e o comprovante` : "Nada em andamento"}</div></div></div>
+    ${n ? grupos.filter(g => g[1].length).map(([t, l]) => `<h2 style="color:var(--heading);font-size:17px;margin:20px 0 10px">${esc(t)} <span class="muted" style="font-weight:600">(${l.length})</span></h2><div class="sols">${l.map(s => solCard(s, { acoes: true })).join("")}</div>`).join("") : (isComprador() ? vazio("Nada para comprar", "Quando o Financeiro aprovar uma compra para a equipe fazer, ela aparece aqui e você recebe um e-mail.") : vazio("Nada em andamento", "Solicitações aprovadas aparecem aqui até o comprovante ser enviado."))}`;
 }
 function filtrar(arr) {
   const q = norm(S.q);
@@ -313,11 +320,11 @@ function painelHTML() {
 }
 function configHTML() {
   const ls = (k, t, d) => `<label class="fld"><span>${esc(t)}</span><textarea id="cfg_${k}" rows="6">${esc(lista(k).join("\n"))}</textarea><small>${esc(d)}</small></label>`;
-  return `<div class="head"><div><h1>Configurações</h1><div class="sub">Equipe do Financeiro e listas do formulário</div></div></div>
-  <section class="card panel"><div class="panelhead"><h2>Equipe do Financeiro</h2><button class="btn sm primary" data-act="membro" data-email="">${ICON("plus")}Adicionar</button></div>
-    <p class="muted" style="margin:0 0 12px;font-size:14px">Quem está aqui aprova, registra compras e confere comprovantes. Qualquer pessoa com e-mail @grupozerbini.com.br pode entrar e pedir compras.</p>
+  return `<div class="head"><div><h1>Configurações</h1><div class="sub">Equipe e listas do formulário</div></div></div>
+  <section class="card panel"><div class="panelhead"><h2>Equipe</h2><button class="btn sm primary" data-act="membro" data-email="">${ICON("plus")}Adicionar</button></div>
+    <p class="muted" style="margin:0 0 12px;font-size:14px"><b>Financeiro</b> aprova, registra compras e confere comprovantes. <b>Comprador</b> vê as solicitações e só registra a compra das aprovadas. Qualquer pessoa com e-mail @grupozerbini.com.br pode entrar e pedir compras.</p>
     <div class="tablewrap"><table style="min-width:600px"><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Recebe e-mails</th><th>Situação</th><th></th></tr></thead><tbody>
-    ${S.membros.map(m => `<tr><td><b>${esc(m.nome || "—")}</b></td><td>${esc(m.email)}</td><td>${m.papel === "admin" ? "Administrador" : "Financeiro"}</td><td>${m.recebe_email ? "Sim" : "Não"}</td><td>${m.ativo ? `<span class="pill st-ok">Ativo</span>` : `<span class="pill st-desc">Inativo</span>`}</td>
+    ${S.membros.map(m => `<tr><td><b>${esc(m.nome || "—")}</b></td><td>${esc(m.email)}</td><td>${({ admin: "Administrador", financeiro: "Financeiro", comprador: "Comprador" })[m.papel] || m.papel}</td><td>${m.recebe_email ? "Sim" : "Não"}</td><td>${m.ativo ? `<span class="pill st-ok">Ativo</span>` : `<span class="pill st-desc">Inativo</span>`}</td>
       <td><div class="rowacts" style="justify-content:flex-end"><button class="btn sm" data-act="membro" data-email="${esc(m.email)}">${ICON("edit")}Editar</button></div></td></tr>`).join("")}
     </tbody></table></div></section>
   <section class="card panel"><div class="panelhead"><h2>Listas do formulário</h2><button class="btn sm primary" data-act="salvarlistas">${ICON("ok")}Salvar listas</button></div>
@@ -626,11 +633,11 @@ async function cancelar(f) {
 // administração
 function membroModal(email) {
   const m = S.membros.find(x => x.email === email) || { email: "", nome: "", papel: "financeiro", ativo: true, recebe_email: true };
-  openModal(`<h2>${email ? "Editar pessoa" : "Adicionar ao Financeiro"}</h2><form class="f" id="fMembro" data-orig="${esc(email)}">
+  openModal(`<h2>${email ? "Editar pessoa" : "Adicionar à equipe"}</h2><form class="f" id="fMembro" data-orig="${esc(email)}">
     <label class="fld"><span>E-mail <i>*</i></span><input id="m_email" type="email" required value="${esc(m.email)}" ${email ? "readonly" : ""} placeholder="nome@grupozerbini.com.br"></label>
     <label class="fld"><span>Nome</span><input id="m_nome" maxlength="80" value="${esc(m.nome)}"></label>
-    <label class="fld"><span>Perfil</span><select id="m_papel"><option value="financeiro" ${m.papel === "financeiro" ? "selected" : ""}>Financeiro: aprova, compra e confere</option><option value="admin" ${m.papel === "admin" ? "selected" : ""}>Administrador: Financeiro + configurações</option></select></label>
-    <label class="check"><input type="checkbox" id="m_mail" ${m.recebe_email ? "checked" : ""}> Recebe e-mail de novas solicitações e comprovantes</label>
+    <label class="fld"><span>Perfil</span><select id="m_papel"><option value="comprador" ${m.papel === "comprador" ? "selected" : ""}>Comprador: só registra as compras aprovadas</option><option value="financeiro" ${m.papel === "financeiro" ? "selected" : ""}>Financeiro: aprova, compra e confere</option><option value="admin" ${m.papel === "admin" ? "selected" : ""}>Administrador: Financeiro + configurações</option></select></label>
+    <label class="check"><input type="checkbox" id="m_mail" ${m.recebe_email ? "checked" : ""}> Recebe e-mails (Financeiro: novas solicitações e comprovantes · Comprador: compras aprovadas)</label>
     <label class="check"><input type="checkbox" id="m_ativo" ${m.ativo ? "checked" : ""}> Ativo</label>
     <div class="foot">${email ? `<button type="button" class="btn ghost" data-act="rmmembro" data-email="${esc(email)}" style="margin-right:auto">${ICON("trash")}Remover</button>` : ""}<button type="button" class="btn ghost" data-act="close">Voltar</button><button class="btn primary">${ICON("ok")}Salvar</button></div></form>`, "sm");
 }
@@ -640,7 +647,7 @@ async function salvarMembro(f) {
   closeModal(); await carregarMembros(); render(); toast("Equipe atualizada.");
 }
 async function removerMembro(email) {
-  if (!confirmar(`Remover ${email} da equipe do Financeiro? A pessoa continua podendo pedir compras.`)) return;
+  if (!confirmar(`Remover ${email} da equipe? A pessoa continua podendo pedir compras.`)) return;
   const { error } = await sb.rpc("fc_membro_remover", { p_email: email }); if (error) { erro(error); return; }
   closeModal(); await carregarMembros(); render(); toast("Removido da equipe.");
 }

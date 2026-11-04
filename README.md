@@ -27,13 +27,16 @@ Também é possível cancelar com motivo: o solicitante até a aprovação (ou e
 ## Acesso
 
 - Login com código por e-mail ou senha. É a mesma conta do Helpdesk e só aceita e-mails @grupozerbini.com.br (trigger `bloquear_cadastro_externo`).
-- Quem não está na equipe do Financeiro é **colaborador** e vê só as próprias solicitações.
-- `fc_membros`: perfil **financeiro** (aprova, compra, confere) ou **admin** (financeiro + configurações).
+- Quem não está na equipe é **colaborador** e vê só as próprias solicitações.
+- `fc_membros` tem três perfis:
+  - **comprador**: vê todas as solicitações e só registra a compra (pedido e previsão) das aprovadas. Não aprova, não confere, não cancela. Recebe e-mail quando uma compra é aprovada para a equipe fazer (tela "Para comprar").
+  - **financeiro**: aprova, compra e confere. Recebe e-mail de novas solicitações e comprovantes.
+  - **admin**: financeiro + configurações.
 
 ## Técnica
 
 - Página estática (`www/`), publicada pelo GitHub Pages com o workflow `.github/workflows/pages.yml`. Sem build: `vendor/supabase.js` é a supabase-js 2.119 copiada do npm.
-- Banco: projeto Supabase `gestao-ativos-ti` (o mesmo da Gestão de Ativos e do Helpdesk), com tabelas de prefixo `fc_`. Migração em `supabase/migrations/20261104_compras_financeiro.sql`.
+- Banco: projeto Supabase `gestao-ativos-ti` (o mesmo da Gestão de Ativos e do Helpdesk), com tabelas de prefixo `fc_`. Migrações em `supabase/migrations/`.
 - As tabelas só permitem leitura (RLS). Toda escrita passa pelas funções `fc_salvar`, `fc_decidir`, `fc_registrar_compra`, `fc_enviar_comprovante`, `fc_conferir`, `fc_cancelar`, `fc_anexo_registrar` e `fc_anexo_remover`, que conferem perfil e etapa.
 - Anexos ficam no bucket privado `compras` (até 15 MB), no caminho `{solicitação}/{orcamento|comprovante}/{arquivo}`, e abrem por link temporário.
 - E-mails: entram na fila `hd_notificacoes` (tipo `fc_compras`, sem chamado) e saem pelo mesmo envio do Helpdesk (cron `hd-notificacoes`).
