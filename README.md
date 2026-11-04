@@ -14,6 +14,8 @@ Endereço: **https://compras.grupozerbini.com.br**
 | Comprovante | Solicitante | Anexa nota fiscal, cupom ou comprovante (PDF ou foto) e informa valor pago, data da compra e NF. Sem anexo não envia. |
 | Finalizada | Financeiro | Confere e finaliza, ou devolve com o motivo. O comprovante devolvido fica no histórico, e o solicitante anexa outro. |
 
+**Excluir** (só administradores): para testes ou lançadas por engano. Apaga a solicitação com itens, anexos e histórico, e registra quem excluiu, quando e o motivo em `fc_exclusoes`. Se a excluída era a última, a numeração volta.
+
 Também é possível cancelar com motivo: o solicitante até a aprovação (ou enquanto ainda não comprou) e o Financeiro a qualquer momento antes de finalizar. Cada passo fica no histórico da solicitação, e os avisos por e-mail saem automaticamente.
 
 ## Telas

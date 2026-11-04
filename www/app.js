@@ -1,7 +1,7 @@
 // Solicitações de Compra — Grupo Zerbini
 // Colaborador solicita → Financeiro aprova → quem compra registra → solicitante anexa o comprovante → Financeiro confere e finaliza.
 "use strict";
-const VERSAO = "1.1.0";
+const VERSAO = "1.2.0";
 const sb = supabase.createClient(FC_CONFIG.supabaseUrl, FC_CONFIG.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true } });
 const BUCKET = "compras", MAX_MB = 15;
 
@@ -220,6 +220,7 @@ function botoes(s, compacto) {
   if (podeRegistrarCompra(s)) x.push(b("compra", "cart", s.status === "comprada" ? "Atualizar compra" : "Registrar compra", veTudo() && s.quem_compra === "financeiro" && s.status === "aprovada" ? "primary" : ""));
   if (d && ["aguardando_aprovacao", "reprovada"].includes(s.status)) x.push(b("editar", "edit", s.status === "reprovada" ? "Ajustar e reenviar" : "Editar", s.status === "reprovada" ? "primary" : ""));
   if (!compacto && ((d && ["aguardando_aprovacao", "reprovada", "aprovada"].includes(s.status)) || (fin && ABERTAS.includes(s.status)))) x.push(b("cancelar", "x", "Cancelar", "ghost"));
+  if (!compacto && isAdmin()) x.push(b("excluir", "trash", "Excluir", "ghost"));
   return x.join("");
 }
 const vazio = (t, m) => `<div class="card empty"><b>${esc(t)}</b>${m}</div>`;
@@ -630,6 +631,28 @@ async function cancelar(f) {
   closeModal(); S.det = null; await recarregar(); toast("Solicitação cancelada.");
 }
 
+// excluir (administrador): testes ou lançadas por engano
+function excluirModal(id) {
+  const s = sol(id); if (!s) return;
+  const n = (s.fc_anexos || []).length;
+  openModal(`<h2>Excluir ${cod(s.id)}?</h2><form class="f" id="fExc" data-id="${s.id}">
+    <p style="margin:0">Use para testes ou solicitações lançadas por engano. <b>${esc(s.titulo)}</b> some de todas as telas, com itens${n ? `, histórico e ${n} ${n === 1 ? "anexo" : "anexos"}` : " e histórico"}. Não dá para desfazer. Fica registrado quem excluiu, quando e o motivo.</p>
+    ${ABERTAS.includes(s.status) && s.status !== "aguardando_aprovacao" ? `<div class="warnnote">Esta solicitação está em andamento. Se for uma compra real, prefira <b>Cancelar</b>, que mantém o histórico.</div>` : ""}
+    <label class="fld"><span>Motivo <i>*</i></span><input id="ex_mot" required maxlength="200" placeholder="Ex.: solicitação de teste"></label>
+    <label class="fld"><span>Para confirmar, digite o número <b>${s.id}</b></span><input id="ex_conf" inputmode="numeric" autocomplete="off"></label>
+    <div class="foot"><button type="button" class="btn ghost" data-act="close">Voltar</button><button class="btn danger" id="exBtn">${ICON("trash")}Excluir</button></div></form>`, "sm");
+}
+async function excluir(f) {
+  const id = +f.dataset.id, mot = $("ex_mot").value.trim();
+  if (!mot) { toast("Informe o motivo."); return; }
+  if ($("ex_conf").value.trim().replace(/^#?0*/, "") !== String(id)) { toast(`Digite ${id} para confirmar.`); return; }
+  const btn = $("exBtn"); btn.disabled = true;
+  const { data: arqs, error } = await sb.rpc("fc_excluir", { p_id: id, p_motivo: mot });
+  if (error) { btn.disabled = false; erro(error); return; }
+  if (arqs && arqs.length) await sb.storage.from(BUCKET).remove(arqs);
+  closeModal(); S.det = null; history.replaceState(null, "", "#v/" + S.view); await recarregar(); toast(`Solicitação ${cod(id)} excluída.`);
+}
+
 // administração
 function membroModal(email) {
   const m = S.membros.find(x => x.email === email) || { email: "", nome: "", papel: "financeiro", ativo: true, recebe_email: true };
@@ -687,6 +710,7 @@ document.addEventListener("click", async e => {
     case "conferir": conferirModal(id); break;
     case "devolver": conferir(id, false); break;
     case "cancelar": cancelarModal(id); break;
+    case "excluir": excluirModal(id); break;
     case "verarq": verArquivo(el.dataset.path); break;
     case "rmarq": removerArquivo(el.dataset.aid, id, !!el.dataset.form); break;
     case "additem": lerItensForm(); FORM.d.itens.push(FORM.novoItem()); reformar(); { const r = document.querySelectorAll(".itrow"); r[r.length - 1].querySelector("input").focus(); } break;
@@ -707,7 +731,7 @@ document.addEventListener("keydown", e => {
 });
 document.addEventListener("submit", e => {
   e.preventDefault(); const f = e.target;
-  ({ fEmail: loginEmail, fCodigo: loginCodigo, fSol: salvarForm, fCompra: salvarCompra, fComp: enviarComprovante, fCanc: cancelar, fMembro: salvarMembro,
+  ({ fEmail: loginEmail, fCodigo: loginCodigo, fSol: salvarForm, fCompra: salvarCompra, fComp: enviarComprovante, fCanc: cancelar, fExc: excluir, fMembro: salvarMembro,
      fDec: () => decidir(f.dataset.id, true), fConf: () => conferir(f.dataset.id, true) }[f.id] || (() => {}))(f);
 });
 document.addEventListener("input", e => {
