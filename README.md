@@ -1,4 +1,4 @@
-# Compras · Financeiro — Grupo Zerbini
+# Solicitações de Compra — Grupo Zerbini
 
 Sistema de solicitações de compra: os colaboradores pedem, o Financeiro aprova e acompanha, e a solicitação só é finalizada depois que o solicitante anexa o comprovante de compra e o Financeiro confere.
 

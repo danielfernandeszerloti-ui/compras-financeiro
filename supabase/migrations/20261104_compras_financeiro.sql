@@ -139,7 +139,7 @@ begin
   || '<div style="max-width:560px;margin:0 auto;background:#fff;border-radius:10px;overflow:hidden;border:1px solid #e3e4ec">'
   || '<div style="height:4px;background:linear-gradient(90deg,#4be0db,#212f96,#f9518d);background-color:#212f96"></div>'
   || '<div style="padding:22px 26px">'
-  || '<div style="font-size:12px;color:#6b7085;margin-bottom:6px">Compras · Financeiro · Solicitação ' || public.fc_cod(p_sol.id) || '</div>'
+  || '<div style="font-size:12px;color:#6b7085;margin-bottom:6px">Solicitações de Compra · Grupo Zerbini · ' || public.fc_cod(p_sol.id) || '</div>'
   || '<h2 style="margin:0 0 6px;font-size:19px;color:#0f2c66">' || public.hd_esc(p_titulo) || '</h2>'
   || '<p style="margin:0 0 14px;font-size:14px;color:#3b4255">' || p_intro || '</p>'
   || case when coalesce(p_corpo,'') <> '' then
@@ -147,7 +147,7 @@ begin
        || public.hd_texto_html(left(p_corpo, 3000)) || '</div>' else '' end
   || '<a href="' || v_url || '" style="display:inline-block;background:#212f96;color:#fff;text-decoration:none;padding:11px 20px;border-radius:8px;font-size:14px;font-weight:600">'
   || public.hd_esc(p_botao) || '</a></div></div>'
-  || '<p style="text-align:center;font-size:11px;color:#9a9db0;margin:14px 0 0">E-mail automático do sistema de compras do Grupo Zerbini.</p></div>';
+  || '<p style="text-align:center;font-size:11px;color:#9a9db0;margin:14px 0 0">E-mail automático do sistema de Solicitações de Compra do Grupo Zerbini.</p></div>';
 end $$;
 
 create or replace function public.fc_notificar(p_para text[], p_sol fc_solicitacoes, p_assunto text, p_titulo text, p_intro text, p_corpo text, p_botao text)

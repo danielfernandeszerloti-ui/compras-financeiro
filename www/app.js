@@ -1,7 +1,7 @@
-// Compras · Financeiro — Grupo Zerbini
+// Solicitações de Compra — Grupo Zerbini
 // Colaborador solicita → Financeiro aprova → quem compra registra → solicitante anexa o comprovante → Financeiro confere e finaliza.
 "use strict";
-const VERSAO = "1.0.1";
+const VERSAO = "1.0.2";
 const sb = supabase.createClient(FC_CONFIG.supabaseUrl, FC_CONFIG.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true } });
 const BUCKET = "compras", MAX_MB = 15;
 
@@ -67,7 +67,7 @@ aplicarTema();
 // ---------- login: código por e-mail (mesmo login do Helpdesk) ----------
 const L = { etapa: "email", email: lsGet("fc_email") || "", senha: false, msg: "" };
 function gateHTML() {
-  const cab = `<div style="display:flex;gap:12px;align-items:center"><div class="logo"><img src="img/logo-128.png" alt=""></div><div><b style="color:var(--heading);font-size:18px">Compras · Financeiro</b><br><small class="muted">Grupo Zerbini</small></div></div>`;
+  const cab = `<div style="display:flex;gap:12px;align-items:center"><div class="logo"><img src="img/logo-128.png" alt=""></div><div><b style="color:var(--heading);font-size:18px">Solicitações de Compra</b><br><small class="muted">Grupo Zerbini</small></div></div>`;
   if (L.etapa === "codigo") return `<div class="gate"><form class="card" id="fCodigo">${cab}
     <h2>Digite o código</h2><p>Enviamos um código para <b>${esc(L.email)}</b>. Ele vale por alguns minutos.</p>
     <input id="lCodigo" class="code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" required aria-label="Código recebido por e-mail">
@@ -162,7 +162,7 @@ function render() {
   const corpo = { painel: painelHTML, aprovacoes: aprovacoesHTML, conferencia: conferenciaHTML, andamento: andamentoHTML, todas: todasHTML, minhas: minhasHTML, config: configHTML }[S.view]();
   const foco = document.activeElement && document.activeElement.id === "fq" ? document.activeElement.selectionStart : null;
   root.innerHTML = `<div class="app"><aside class="side">
-    <div class="brand"><div class="logo"><img src="img/logo-128.png" alt=""></div><div><b>Compras</b><small>Financeiro</small></div></div>
+    <div class="brand"><div class="logo"><img src="img/logo-128.png" alt=""></div><div><b>Solicitações de Compra</b><small>Grupo Zerbini</small></div></div>
     <div class="bar3"></div>
     ${isFin() ? `<div class="navlabel">Financeiro</div>` : `<div class="navlabel">Compras</div>`}
     <nav class="navs">${vs.map(([k, l, ic, n, soft]) => `${k === "minhas" && isFin() ? `<div class="navlabel" style="padding-left:10px">Você</div>` : ""}<button class="nav ${S.view === k ? "on" : ""}" data-act="go" data-v="${k}">${ICON(ic)}${esc(l)}${n ? `<span class="n ${soft ? "soft" : ""}">${n}</span>` : ""}</button>`).join("")}</nav>

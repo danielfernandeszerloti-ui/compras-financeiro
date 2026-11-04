@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#212f96">
-<title>Compras · Financeiro</title>
+<title>Solicitações de Compra · Grupo Zerbini</title>
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -54,8 +54,8 @@ a{color:var(--accent-2)}
 .brand{display:flex;gap:12px;align-items:center;padding:20px 18px;border-bottom:1px solid var(--border)}
 .logo{width:44px;height:44px;flex:none;border-radius:12px;display:grid;place-items:center;background:#fff;border:1px solid var(--border)}
 .logo img{width:36px;height:36px}
-.brand b{display:block;color:var(--heading);font-size:18px;font-weight:800;line-height:1.1}
-.brand small{color:var(--accent-2);font-size:12.5px;font-weight:700}
+.brand b{display:block;color:var(--heading);font-size:16.5px;font-weight:800;line-height:1.15}
+.brand small{display:block;color:var(--muted);font-size:12.5px;font-weight:600;margin-top:2px}
 .bar3{height:3px;background:linear-gradient(90deg,var(--accent),#212f96,var(--pink))}
 .navlabel{padding:18px 20px 6px;font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
 .navs{display:flex;flex-direction:column;gap:2px;padding:0 10px}
@@ -226,12 +226,13 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:now
 @media (max-width:900px){
   .app{grid-template-columns:minmax(0,1fr)}
   .side{position:sticky;top:0;height:auto;z-index:20;min-width:0;max-width:100vw;flex-direction:row;flex-wrap:wrap;align-items:center;overflow:visible}
-  .brand{border:0;padding:10px 12px}.brand small{display:none}
+  .brand{border:0;padding:10px 12px;flex:1 1 0;min-width:0}.brand>div{min-width:0}.brand small{display:none}
+  .brand b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .bar3,.navlabel{display:none}
   .navs{flex-direction:row;overflow-x:auto;order:3;width:100%;padding:0 8px 8px;gap:4px}
   .nav{width:auto;white-space:nowrap;border-left:0;border-bottom:3px solid transparent;border-radius:8px;padding:8px 10px}
   .nav.on{border-bottom-color:var(--accent-2)}
-  .me{margin:0 0 0 auto;border:0;padding:8px 12px}.me .who{display:none}
+  .me{margin:0 0 0 auto;border:0;padding:8px 10px 8px 0;flex:none}.me .who{display:none}
   .grid2,.kv{grid-template-columns:1fr 1fr}
   .itrow{grid-template-columns:minmax(0,1fr) 70px 110px 36px}.itrow .forn{grid-column:1/-2}
 }
@@ -240,6 +241,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:now
   .sc{grid-template-columns:1fr}.sc .v{text-align:left}
   .itrow{grid-template-columns:minmax(0,1fr) 64px 36px}.itrow .vu{grid-column:1/-2}
   .modal{padding:20px 16px}
+  .me .av{display:none}
   .hist li{grid-template-columns:1fr}
   .bar{grid-template-columns:90px minmax(0,1fr) 90px}
 }
@@ -276,6 +278,6 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:now
   <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5h13L22 12v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z"/></symbol>
 </svg>
 <div id="root"><div class="loading">Carregando…</div></div>
-<script src="app.js?v=1.0.1"></script>
+<script src="app.js?v=1.0.2"></script>
 </body>
 </html>
