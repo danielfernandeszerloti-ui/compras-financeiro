@@ -1,7 +1,7 @@
 // Compras · Financeiro — Grupo Zerbini
 // Colaborador solicita → Financeiro aprova → quem compra registra → solicitante anexa o comprovante → Financeiro confere e finaliza.
 "use strict";
-const VERSAO = "1.0.0";
+const VERSAO = "1.0.1";
 const sb = supabase.createClient(FC_CONFIG.supabaseUrl, FC_CONFIG.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true } });
 const BUCKET = "compras", MAX_MB = 15;
 
@@ -166,9 +166,9 @@ function render() {
     <div class="bar3"></div>
     ${isFin() ? `<div class="navlabel">Financeiro</div>` : `<div class="navlabel">Compras</div>`}
     <nav class="navs">${vs.map(([k, l, ic, n, soft]) => `${k === "minhas" && isFin() ? `<div class="navlabel" style="padding-left:10px">Você</div>` : ""}<button class="nav ${S.view === k ? "on" : ""}" data-act="go" data-v="${k}">${ICON(ic)}${esc(l)}${n ? `<span class="n ${soft ? "soft" : ""}">${n}</span>` : ""}</button>`).join("")}</nav>
-    <div class="me"><div class="av">${S.eu.foto ? `<img src="${esc(S.eu.foto)}" alt="">` : esc(iniciais(S.eu.nome))}</div><div><b>${esc(S.eu.nome)}</b><small>${esc({ admin: "Administrador", financeiro: "Financeiro", solicitante: "Colaborador" }[S.eu.papel] || "")}</small></div>
-      <button class="ib" data-act="tema" title="Tema claro/escuro" aria-label="Alternar tema">${ICON("moon")}</button>
-      <button class="ib" data-act="sair" title="Sair" aria-label="Sair">${ICON("logout")}</button></div>
+    <div class="me"><div class="av">${S.eu.foto ? `<img src="${esc(S.eu.foto)}" alt="">` : esc(iniciais(S.eu.nome))}</div><div class="who" title="${esc(S.eu.nome)}"><b>${esc(S.eu.nome)}</b><small>${esc({ admin: "Administrador", financeiro: "Financeiro", solicitante: "Colaborador" }[S.eu.papel] || "")}</small></div>
+      <div class="tools"><button class="ib" data-act="tema" title="Tema claro/escuro" aria-label="Alternar tema">${ICON("moon")}</button>
+      <button class="ib" data-act="sair" title="Sair" aria-label="Sair">${ICON("logout")}</button></div></div>
   </aside><main>${corpo}</main></div>`;
   if (foco != null && $("fq")) { $("fq").focus(); $("fq").setSelectionRange(foco, foco); }
 }
