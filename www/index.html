@@ -111,11 +111,12 @@ h1{margin:0;color:var(--heading);font-size:clamp(26px,3.2vw,36px);font-weight:80
 .chip{font-size:12px;font-weight:800;padding:1px 8px;border-radius:6px;background:var(--accent-soft);color:var(--accent-2);white-space:nowrap}
 .chip.urg{background:var(--bad-bg);color:var(--bad-fg)}
 
-.filters{display:flex;flex-wrap:wrap;gap:12px;padding:16px 18px;margin-bottom:18px}
+.filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:16px 18px;margin-bottom:18px}
+.filters .search{grid-column:1/-1}
 .search{flex:1 1 280px;display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:9px;padding:0 12px;background:var(--surface);min-width:0}
 .search svg{color:var(--accent-2)}
 .search input{border:0;outline:0;background:none;padding:10px 0;width:100%;min-width:0}
-.filters select{border:1px solid var(--border);border-radius:9px;padding:10px 12px;font-weight:600;flex:0 1 210px;min-width:0}
+.filters select{border:1px solid var(--border);border-radius:9px;padding:10px 12px;font-weight:600;min-width:0;width:100%}
 
 /* cartões de solicitação */
 .sols{display:flex;flex-direction:column;gap:10px}
@@ -233,11 +234,11 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:now
   .nav{width:auto;white-space:nowrap;border-left:0;border-bottom:3px solid transparent;border-radius:8px;padding:8px 10px}
   .nav.on{border-bottom-color:var(--accent-2)}
   .me{margin:0 0 0 auto;border:0;padding:8px 10px 8px 0;flex:none}.me .who{display:none}
-  .grid2,.kv{grid-template-columns:1fr 1fr}
+  .grid2,.kv,.filters{grid-template-columns:1fr 1fr}
   .itrow{grid-template-columns:minmax(0,1fr) 70px 110px 36px}.itrow .forn{grid-column:1/-2}
 }
 @media (max-width:600px){
-  .fgrid,.grid2,.kv{grid-template-columns:1fr}
+  .fgrid,.grid2,.kv,.filters{grid-template-columns:1fr}
   .sc{grid-template-columns:1fr}.sc .v{text-align:left}
   .itrow{grid-template-columns:minmax(0,1fr) 64px 36px}.itrow .vu{grid-column:1/-2}
   .modal{padding:20px 16px}
@@ -278,6 +279,6 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:now
   <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5h13L22 12v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z"/></symbol>
 </svg>
 <div id="root"><div class="loading">Carregando…</div></div>
-<script src="app.js?v=1.2.0"></script>
+<script src="app.js?v=1.2.2"></script>
 </body>
 </html>

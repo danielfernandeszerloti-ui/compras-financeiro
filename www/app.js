@@ -1,11 +1,11 @@
 // Solicitações de Compra — Grupo Zerbini
 // Colaborador solicita → Financeiro aprova → quem compra registra → solicitante anexa o comprovante → Financeiro confere e finaliza.
 "use strict";
-const VERSAO = "1.2.0";
+const VERSAO = "1.2.2";
 const sb = supabase.createClient(FC_CONFIG.supabaseUrl, FC_CONFIG.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true } });
 const BUCKET = "compras", MAX_MB = 15;
 
-const S = { eu:null, sols:[], cfg:{}, membros:[], view:"", q:"", fStatus:"", fSetor:"", fQuem:"", det:null, eventos:{} };
+const S = { eu:null, sols:[], cfg:{}, membros:[], view:"", q:"", fStatus:"", fSetor:"", fQuem:"", fForma:"", det:null, eventos:{} };
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 const ICON = n => `<svg class="i"><use href="#i-${n}"/></svg>`;
@@ -268,20 +268,22 @@ function andamentoHTML() {
 function filtrar(arr) {
   const q = norm(S.q);
   return arr.filter(s => (!S.fStatus || (S.fStatus === "abertas" ? ABERTAS.includes(s.status) : s.status === S.fStatus))
-    && (!S.fSetor || s.setor === S.fSetor) && (!S.fQuem || s.quem_compra === S.fQuem)
+    && (!S.fSetor || s.setor === S.fSetor) && (!S.fQuem || s.quem_compra === S.fQuem) && (!S.fForma || (S.fForma === "-" ? !s.forma_pagamento : s.forma_pagamento === S.fForma))
     && (!q || norm([cod(s.id), s.id, s.titulo, s.solicitante_nome, s.solicitante_email, s.setor, s.empresa, s.justificativa, s.pedido, s.nf_numero, ...itensDe(s).map(i => i.item + " " + i.fornecedor)].join(" ")).includes(q)));
 }
 function todasHTML() {
   const l = filtrar(S.sols), setores = [...new Set(S.sols.map(s => s.setor).filter(Boolean))].sort();
+  const formas = [...new Set([...lista("formas_pagamento"), ...S.sols.map(s => s.forma_pagamento).filter(Boolean)])];
   return `<div class="head"><div><h1>Todas as solicitações</h1><div class="sub">${l.length} de ${S.sols.length} · ${brl(total(l))}</div></div>
     <div class="actions"><button class="btn" data-act="exportar">${ICON("down")}Exportar Excel (CSV)</button></div></div>
   <div class="card filters"><label class="search">${ICON("search")}<input id="fq" placeholder="Buscar por número, título, item, solicitante, fornecedor, NF…" value="${esc(S.q)}" aria-label="Buscar"></label>
     <select id="fs" aria-label="Situação"><option value="">Todas as situações</option><option value="abertas" ${S.fStatus === "abertas" ? "selected" : ""}>Em aberto</option>${Object.entries(ST).map(([k, [l]]) => `<option value="${k}" ${S.fStatus === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>
     <select id="fse" aria-label="Setor"><option value="">Todos os setores</option>${setores.map(x => `<option ${S.fSetor === x ? "selected" : ""}>${esc(x)}</option>`).join("")}</select>
-    <select id="fqm" aria-label="Quem compra"><option value="">Quem compra: todos</option><option value="financeiro" ${S.fQuem === "financeiro" ? "selected" : ""}>Financeiro</option><option value="solicitante" ${S.fQuem === "solicitante" ? "selected" : ""}>Solicitante</option></select></div>
-  ${l.length ? `<div class="card tablewrap"><table style="min-width:900px"><thead><tr><th>Nº</th><th>Aberta</th><th>Solicitação</th><th>Solicitante</th><th>Compra</th><th class="num">Estimado</th><th class="num">Pago</th><th>Situação</th></tr></thead><tbody>
+    <select id="fqm" aria-label="Quem compra"><option value="">Quem compra: todos</option><option value="financeiro" ${S.fQuem === "financeiro" ? "selected" : ""}>Financeiro</option><option value="solicitante" ${S.fQuem === "solicitante" ? "selected" : ""}>Solicitante</option></select>
+    <select id="ffp" aria-label="Forma de pagamento"><option value="">Pagamento: todas as formas</option>${formas.map(x => `<option ${S.fForma === x ? "selected" : ""}>${esc(x)}</option>`).join("")}<option value="-" ${S.fForma === "-" ? "selected" : ""}>Pagamento não definido</option></select></div>
+  ${l.length ? `<div class="card tablewrap"><table style="min-width:1000px"><thead><tr><th>Nº</th><th>Aberta</th><th>Solicitação</th><th>Solicitante</th><th>Compra</th><th>Pagamento</th><th class="num">Estimado</th><th class="num">Pago</th><th>Situação</th></tr></thead><tbody>
     ${l.map(s => `<tr class="click" data-act="abrir" data-id="${s.id}"><td><b>${cod(s.id)}</b></td><td>${esc(fDia(s.criado_em.slice(0, 10)))}</td><td><b style="color:var(--heading)">${esc(s.titulo)}</b>${s.urgente && ABERTAS.includes(s.status) ? ` <span class="chip urg">Urgente</span>` : ""}<br><small class="muted">${esc(itensDe(s).map(i => `${i.quantidade}× ${i.item}`).join(", "))}</small></td>
-      <td>${esc(s.solicitante_nome)}<br><small class="muted">${esc([s.setor, s.empresa].filter(Boolean).join(" · "))}</small></td><td>${s.quem_compra === "financeiro" ? "Financeiro" : "Solicitante"}</td>
+      <td>${esc(s.solicitante_nome)}<br><small class="muted">${esc([s.setor, s.empresa].filter(Boolean).join(" · "))}</small></td><td>${s.quem_compra === "financeiro" ? "Financeiro" : "Solicitante"}</td><td>${s.forma_pagamento ? esc(s.forma_pagamento) : `<span class="muted">—</span>`}</td>
       <td class="num">${esc(brl(s.valor_estimado))}</td><td class="num">${esc(brl(s.valor_pago))}</td><td>${pill(s)}</td></tr>`).join("")}
   </tbody></table></div>` : vazio("Nada encontrado", "Ajuste a busca ou os filtros.")}`;
 }
@@ -743,6 +745,7 @@ document.addEventListener("change", e => {
   if (t.id === "fs") { S.fStatus = t.value; render(); }
   if (t.id === "fse") { S.fSetor = t.value; render(); }
   if (t.id === "fqm") { S.fQuem = t.value; render(); }
+  if (t.id === "ffp") { S.fForma = t.value; render(); }
   if (t.id === "s_files" && FORM) { lerItensForm(); FORM.files = [...FORM.files, ...t.files]; $("s_arqs").textContent = FORM.files.map(f => f.name).join(", "); }
   if (t.id === "cp_files" && t.files.length) anexarComprovantes([...t.files]);
 });
