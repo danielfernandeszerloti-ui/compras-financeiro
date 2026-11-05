@@ -10,7 +10,7 @@ Endereço: **https://compras.grupozerbini.com.br**
 |---|---|---|
 | Solicitada | Colaborador | Título, setor, empresa, itens (quantidade, valor, fornecedor, link), justificativa, prazo, urgência, quem vai comprar e orçamentos anexos (opcional). O Financeiro recebe e-mail. |
 | Aprovada / Reprovada | Financeiro | Aprova (pode trocar quem compra e definir a forma de pagamento) ou reprova com motivo. Reprovada volta para o solicitante ajustar e reenviar, ou cancelar. |
-| Comprada | Quem compra | Registro opcional de pedido e previsão de chegada. Quem compra é a **equipe de compras** (vai para a tela "Para comprar" e os compradores recebem e-mail) ou o **próprio solicitante** (vê em "Minhas solicitações"), decidido em cada solicitação e confirmado na aprovação. |
+| Comprada | Quem compra | Registro opcional de pedido e previsão de chegada. Quem compra é o **Financeiro/Compras** (vai para a tela "Para comprar" e os compradores recebem e-mail) ou o **próprio solicitante** (vê em "Minhas solicitações"), decidido em cada solicitação e confirmado na aprovação. |
 | Comprovante | Solicitante | Anexa nota fiscal, cupom ou comprovante (PDF ou foto) e informa valor pago, data da compra e NF. Sem anexo não envia. |
 | Finalizada | Financeiro | Confere e finaliza, ou devolve com o motivo. O comprovante devolvido fica no histórico, e o solicitante anexa outro. |
 
