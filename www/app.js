@@ -1,11 +1,11 @@
 // Solicitações de Compra — Grupo Zerbini
 // Colaborador solicita → Financeiro aprova → quem compra registra → solicitante anexa o comprovante → Financeiro confere e finaliza.
 "use strict";
-const VERSAO = "1.3.1";
+const VERSAO = "1.4.0";
 const sb = supabase.createClient(FC_CONFIG.supabaseUrl, FC_CONFIG.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true } });
 const BUCKET = "compras", MAX_MB = 15;
 
-const S = { eu:null, sols:[], cfg:{}, membros:[], view:"", q:"", fStatus:"", fSetor:"", fQuem:"", fForma:"", det:null, eventos:{} };
+const S = { eu:null, sols:[], cfg:{}, membros:[], view:"", q:"", fStatus:"", fSetor:"", fQuem:"", fForma:"", fTipo:"", fAss:"ativa", det:null, eventos:{} };
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 const ICON = n => `<svg class="i"><use href="#i-${n}"/></svg>`;
@@ -144,10 +144,12 @@ const VIEWS = () => [
     ["aprovacoes", "Aprovações", "check", S.sols.filter(s => s.status === "aguardando_aprovacao").length],
     ["conferencia", "Conferência", "file", S.sols.filter(s => s.status === "comprovante_enviado").length],
     ["andamento", "Em andamento", "clock", S.sols.filter(s => ["aprovada", "comprada", "reprovada"].includes(s.status)).length, true],
+    ["assinaturas", "Assinaturas", "undo", S.sols.filter(s => ehAss(s) && assSituacao(s) === "ativa" && proxRenovacao(s) && s.recorrencia === "anual" && diasAte(proxRenovacao(s)) <= 30).length || null],
     ["todas", "Todas", "list", null],
   ] : []),
   ...(isComprador() ? [
     ["andamento", "Para comprar", "cart", S.sols.filter(s => s.status === "aprovada" && s.quem_compra === "financeiro").length],
+    ["assinaturas", "Assinaturas", "undo", null],
     ["todas", "Todas", "list", null],
   ] : []),
   ["minhas", "Minhas solicitações", "cart", S.sols.filter(s => dono(s) && (s.status === "reprovada" || s.status === "comprada" || (s.status === "aprovada" && s.quem_compra === "solicitante"))).length],
@@ -166,7 +168,7 @@ function render() {
   const root = $("root");
   if (!S.eu) { root.innerHTML = gateHTML(); return; }
   const vs = VIEWS(); if (!vs.some(v => v[0] === S.view)) S.view = isFin() ? "painel" : isComprador() ? "andamento" : "minhas";
-  const corpo = { painel: painelHTML, aprovacoes: aprovacoesHTML, conferencia: conferenciaHTML, andamento: andamentoHTML, todas: todasHTML, minhas: minhasHTML, config: configHTML }[S.view]();
+  const corpo = { painel: painelHTML, aprovacoes: aprovacoesHTML, conferencia: conferenciaHTML, andamento: andamentoHTML, todas: todasHTML, assinaturas: assinaturasHTML, minhas: minhasHTML, config: configHTML }[S.view]();
   const foco = document.activeElement && document.activeElement.id === "fq" ? document.activeElement.selectionStart : null;
   root.innerHTML = `<div class="app"><aside class="side">
     <div class="brand"><div class="logo"><img src="img/logo-128.png" alt=""></div><div><b>Solicitações de Compra</b><small>Grupo Zerbini</small></div></div>
@@ -199,13 +201,13 @@ function solCard(s, opts = {}) {
   const prev = s.status === "comprada" && s.previsao ? diasAte(s.previsao) : null;
   const nx = proximoPasso(s);
   return `<article class="card sc ${s.urgente && ABERTAS.includes(s.status) ? "urg" : ""}" data-act="abrir" data-id="${s.id}" tabindex="0">
-    <div><div class="t"><span class="cod">${cod(s.id)}</span>${esc(s.titulo)} ${pill(s)}${s.urgente && ABERTAS.includes(s.status) ? `<span class="chip urg">Urgente</span>` : ""}${s.devolucoes && ["aprovada", "comprada"].includes(s.status) ? `<span class="chip urg">Comprovante devolvido</span>` : ""}</div>
+    <div><div class="t"><span class="cod">${cod(s.id)}</span>${esc(s.titulo)} ${pill(s)}${s.urgente && ABERTAS.includes(s.status) ? `<span class="chip urg">Urgente</span>` : ""}${recChip(s)}${s.assinatura_encerrada_em ? `<span class="chip" style="background:var(--disc-bg);color:var(--disc-fg)">Assinatura encerrada</span>` : ""}${s.devolucoes && ["aprovada", "comprada"].includes(s.status) ? `<span class="chip urg">Comprovante devolvido</span>` : ""}</div>
       <div class="m">${opts.solicitante !== false ? `<span>${ICON("users")} ${esc(s.solicitante_nome)}${s.setor ? ` · ${esc(s.setor)}` : ""}</span>` : (s.setor ? `<span>${esc(s.setor)}</span>` : "")}
         ${s.empresa ? `<span>${esc(s.empresa)}</span>` : ""}
         <span>${itens.length} ${itens.length === 1 ? "item" : "itens"}: ${esc(itens.slice(0, 3).map(i => `${i.quantidade}× ${i.item}`).join(", "))}${itens.length > 3 ? "…" : ""}</span>
         <span>Quem compra: <b style="color:var(--heading)">${esc(quemTxt(s))}</b></span>
         <span>Aberta em ${esc(fDia(s.criado_em.slice(0, 10)))}</span></div></div>
-    <div class="v">${v != null ? esc(brl(v)) : `<span class="muted">sem valor</span>`}<small>${s.valor_pago != null ? "pago" : "estimado"}</small></div>
+    <div class="v">${v != null ? esc(brl(v)) + (ehAss(s) ? `<span style="font-weight:700;font-size:13px">${POR[s.recorrencia]}</span>` : "") : `<span class="muted">sem valor</span>`}<small>${s.valor_pago != null ? "pago" : "estimado"}</small></div>
     ${nx || prazo != null || prev != null ? `<div class="nx">${nx ? `${ICON("clock")}${esc(nx)}` : ""}
       ${prazo != null ? `<span class="${prazo < 0 ? "late" : ""}">· necessário até ${esc(fDia(s.necessario_ate))}${prazo < 0 ? " (vencido)" : prazo <= 2 ? ` (${prazo === 0 ? "hoje" : prazo === 1 ? "amanhã" : "em 2 dias"})` : ""}</span>` : ""}
       ${prev != null ? `<span class="${prev < 0 ? "late" : ""}">· previsão de chegada ${esc(fDia(s.previsao))}${prev < 0 ? " (atrasada)" : ""}</span>` : ""}</div>` : ""}
@@ -221,11 +223,29 @@ function botoes(s, compacto) {
   if (podeRegistrarCompra(s)) x.push(b("compra", "cart", s.status === "comprada" ? "Atualizar compra" : "Registrar compra", veTudo() && s.quem_compra === "financeiro" && s.status === "aprovada" ? "primary" : ""));
   if (d && ["aguardando_aprovacao", "reprovada"].includes(s.status)) x.push(b("editar", "edit", s.status === "reprovada" ? "Ajustar e reenviar" : "Editar", s.status === "reprovada" ? "primary" : ""));
   if (!compacto && ((d && ["aguardando_aprovacao", "reprovada", "aprovada"].includes(s.status)) || (fin && ABERTAS.includes(s.status)))) x.push(b("cancelar", "x", "Cancelar", "ghost"));
+  if (!compacto && fin && ehAss(s) && assSituacao(s) === "ativa") x.push(b("encerrarass", "x", "Encerrar assinatura"));
   if (!compacto && isAdmin()) x.push(b("excluir", "trash", "Excluir", "ghost"));
   return x.join("");
 }
 const vazio = (t, m) => `<div class="card empty"><b>${esc(t)}</b>${m}</div>`;
 const total = arr => arr.reduce((a, s) => a + (Number(valorRef(s)) || 0), 0);
+// ---------- assinaturas ----------
+const REC = { unica: "Compra única", mensal: "Assinatura mensal", anual: "Assinatura anual" };
+const POR = { mensal: "/mês", anual: "/ano", unica: "" };
+const ehAss = s => s.recorrencia && s.recorrencia !== "unica";
+const assInicio = s => s.data_compra || (s.comprado_em || "").slice(0, 10) || (s.comprovante_em || "").slice(0, 10) || null;
+const somaPeriodo = (d, rec, n = 1) => { const [y, m, dd] = d.split("-").map(Number); const t = rec === "mensal" ? new Date(Date.UTC(y, m - 1 + n, dd)) : new Date(Date.UTC(y + n, m - 1, dd)); return t.toISOString().slice(0, 10); };
+function proxRenovacao(s) {
+  const i = assInicio(s); if (!ehAss(s) || !i) return null;
+  let k = 1, d = somaPeriodo(i, s.recorrencia, k); const h = hoje();
+  while (d < h && k < 1200) { k++; d = somaPeriodo(i, s.recorrencia, k); }
+  return d;
+}
+const assContratada = s => ["comprada", "comprovante_enviado", "finalizada"].includes(s.status);
+const assSituacao = s => s.assinatura_encerrada_em ? "encerrada" : assContratada(s) ? "ativa" : ["aguardando_aprovacao", "aprovada", "reprovada"].includes(s.status) ? "contratacao" : "fora";
+const custoMes = s => { const v = Number(valorRef(s)) || 0; return s.recorrencia === "anual" ? v / 12 : v; };
+const custoAno = s => { const v = Number(valorRef(s)) || 0; return s.recorrencia === "mensal" ? v * 12 : v; };
+const recChip = s => ehAss(s) ? `<span class="chip">${esc(REC[s.recorrencia])}</span>` : "";
 
 function minhasHTML() {
   const minhas = S.sols.filter(dono), ab = minhas.filter(s => ABERTAS.includes(s.status)), fe = minhas.filter(s => !ABERTAS.includes(s.status));
@@ -269,7 +289,7 @@ function andamentoHTML() {
 function filtrar(arr) {
   const q = norm(S.q);
   return arr.filter(s => (!S.fStatus || (S.fStatus === "abertas" ? ABERTAS.includes(s.status) : s.status === S.fStatus))
-    && (!S.fSetor || s.setor === S.fSetor) && (!S.fQuem || s.quem_compra === S.fQuem) && (!S.fForma || (S.fForma === "-" ? !s.forma_pagamento : s.forma_pagamento === S.fForma))
+    && (!S.fSetor || s.setor === S.fSetor) && (!S.fQuem || s.quem_compra === S.fQuem) && (!S.fTipo || (s.recorrencia || "unica") === S.fTipo) && (!S.fForma || (S.fForma === "-" ? !s.forma_pagamento : s.forma_pagamento === S.fForma))
     && (!q || norm([cod(s.id), s.id, s.titulo, s.solicitante_nome, s.solicitante_email, s.setor, s.empresa, s.justificativa, s.pedido, s.nf_numero, ...itensDe(s).map(i => i.item + " " + i.fornecedor)].join(" ")).includes(q)));
 }
 function todasHTML() {
@@ -281,7 +301,8 @@ function todasHTML() {
     <select id="fs" aria-label="Situação"><option value="">Todas as situações</option><option value="abertas" ${S.fStatus === "abertas" ? "selected" : ""}>Em aberto</option>${Object.entries(ST).map(([k, [l]]) => `<option value="${k}" ${S.fStatus === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>
     <select id="fse" aria-label="Setor"><option value="">Todos os setores</option>${setores.map(x => `<option ${S.fSetor === x ? "selected" : ""}>${esc(x)}</option>`).join("")}</select>
     <select id="fqm" aria-label="Quem compra"><option value="">Quem compra: todos</option><option value="financeiro" ${S.fQuem === "financeiro" ? "selected" : ""}>Financeiro/Compras</option><option value="solicitante" ${S.fQuem === "solicitante" ? "selected" : ""}>Solicitante</option></select>
-    <select id="ffp" aria-label="Forma de pagamento"><option value="">Pagamento: todas as formas</option>${formas.map(x => `<option ${S.fForma === x ? "selected" : ""}>${esc(x)}</option>`).join("")}<option value="-" ${S.fForma === "-" ? "selected" : ""}>Pagamento não definido</option></select></div>
+    <select id="ffp" aria-label="Forma de pagamento"><option value="">Pagamento: todas as formas</option>${formas.map(x => `<option ${S.fForma === x ? "selected" : ""}>${esc(x)}</option>`).join("")}<option value="-" ${S.fForma === "-" ? "selected" : ""}>Pagamento não definido</option></select>
+    <select id="ftp" aria-label="Tipo de compra"><option value="">Tipo: todos</option>${Object.entries(REC).map(([k, l]) => `<option value="${k}" ${S.fTipo === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></div>
   ${l.length ? `<div class="card tablewrap"><table style="min-width:1000px"><thead><tr><th>Nº</th><th>Aberta</th><th>Solicitação</th><th>Solicitante</th><th>Compra</th><th>Pagamento</th><th class="num">Estimado</th><th class="num">Pago</th><th>Situação</th></tr></thead><tbody>
     ${l.map(s => `<tr class="click" data-act="abrir" data-id="${s.id}"><td><b>${cod(s.id)}</b></td><td>${esc(fDia(s.criado_em.slice(0, 10)))}</td><td><b style="color:var(--heading)">${esc(s.titulo)}</b>${s.urgente && ABERTAS.includes(s.status) ? ` <span class="chip urg">Urgente</span>` : ""}<br><small class="muted">${esc(itensDe(s).map(i => `${i.quantidade}× ${i.item}`).join(", "))}</small></td>
       <td>${esc(s.solicitante_nome)}<br><small class="muted">${esc([s.setor, s.empresa].filter(Boolean).join(" · "))}</small></td><td>${s.quem_compra === "financeiro" ? "Financeiro/Compras" : "Solicitante"}</td><td>${s.forma_pagamento ? esc(s.forma_pagamento) : `<span class="muted">—</span>`}</td>
@@ -303,6 +324,7 @@ function painelHTML() {
   });
   const vistos = new Set(); // uma linha por solicitação, mantendo a primeira (mais grave)
   const alertasU = alertas.filter(a => !vistos.has(a.s.id) && vistos.add(a.s.id));
+  S.sols.filter(s => ehAss(s) && s.recorrencia === "anual" && assSituacao(s) === "ativa").forEach(s => { const r = proxRenovacao(s); if (r && diasAte(r) <= 30) alertas.push({ s, late: diasAte(r) <= 7, t: `Assinatura anual renova em ${fDia(r)} (${diasAte(r)} dias)` }); });
   const setores = {}; finMes.forEach(s => { const k = s.setor || "Sem setor"; setores[k] = (setores[k] || 0) + Number(s.valor_pago || 0); });
   const ss = Object.entries(setores).sort((a, b) => b[1] - a[1]), max = ss.length ? ss[0][1] : 0;
   const tile = (v, ic, t, n, mini, hot) => `<button class="card tile ${hot && n ? "hot" : ""}" data-act="go" data-v="${v}"><div class="ti">${ICON(ic)}${esc(t)}</div><div class="big">${n}</div><div class="mini">${esc(mini)}</div></button>`;
@@ -313,6 +335,7 @@ function painelHTML() {
     ${tile("conferencia", "file", "Comprovantes para conferir", conf.length, brl(total(conf)) || "—", true)}
     ${tile("andamento", "cart", "Para o Financeiro/Compras comprar", compraFin.length, brl(total(compraFin)) || "—")}
     ${tile("andamento", "clip", "Aguardando comprovante", espComp.length, brl(total(espComp)) || "—")}
+    ${tile("assinaturas", "undo", "Assinaturas ativas", S.sols.filter(s => ehAss(s) && assSituacao(s) === "ativa").length, (brl(S.sols.filter(s => ehAss(s) && assSituacao(s) === "ativa").reduce((a, s) => a + custoMes(s), 0)) || "R$ 0,00") + " por mês")}
     ${tile("todas", "ok", "Finalizadas no mês", finMes.length, (brl(total(finMes)) || "R$ 0,00") + " pagos")}
   </div>
   <div class="grid2">
@@ -368,6 +391,7 @@ function detalheHTML(s) {
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin:-6px 0 14px">${pill(s)}${s.urgente && ABERTAS.includes(s.status) ? `<span class="chip urg">Urgente</span>` : ""}</div>
   ${["reprovada", "cancelada"].includes(s.status) ? "" : `<div class="steps">${passos.map((p, i) => `<span class="${p[1] ? "done" : i === ci ? "cur" : ""}">${esc(p[0])}</span>`).join("")}</div>`}
   ${s.status === "reprovada" ? `<div class="badnote" style="margin-bottom:14px"><b>Reprovada</b> por ${esc(nomeEmail(s.decidido_por))} em ${esc(fDH(s.decidido_em))}: ${esc(s.decisao_obs)}${dono(s) ? "<br>Você pode ajustar e reenviar, ou cancelar." : ""}</div>` : ""}
+  ${s.assinatura_encerrada_em ? `<div class="note" style="margin-bottom:14px"><b>Assinatura encerrada</b> em ${esc(fDia(s.assinatura_encerrada_em))} por ${esc(nomeEmail(s.assinatura_encerrada_por))}: ${esc(s.assinatura_encerrada_motivo)}</div>` : ""}
   ${s.status === "cancelada" ? `<div class="note" style="margin-bottom:14px"><b>Cancelada</b> por ${esc(nomeEmail(s.cancelado_por))} em ${esc(fDH(s.cancelado_em))}: ${esc(s.cancelado_motivo)}</div>` : ""}
   ${s.devolucao_obs && ["aprovada", "comprada"].includes(s.status) ? `<div class="warnnote" style="margin-bottom:14px"><b>Comprovante devolvido pelo Financeiro:</b> ${esc(s.devolucao_obs)}</div>` : ""}
   ${proximoPasso(s) ? `<div class="note" style="margin-bottom:14px;color:var(--accent-2);font-weight:700">${ICON("clock")} ${esc(proximoPasso(s))}</div>` : ""}
@@ -377,11 +401,13 @@ function detalheHTML(s) {
     ${kv("Aberta em", esc(fDH(s.criado_em)))}
     ${kv("Necessário até", s.necessario_ate ? esc(fDia(s.necessario_ate)) : "")}
     ${kv("Quem compra", esc(quemTxt(s)))}
+    ${kv("Tipo", esc(REC[s.recorrencia] || "Compra única"))}
     ${kv("Forma de pagamento", esc(s.forma_pagamento))}
-    ${kv("Valor estimado", esc(brl(s.valor_estimado)))}
+    ${kv("Valor estimado", s.valor_estimado != null ? esc(brl(s.valor_estimado) + POR[s.recorrencia || "unica"]) : "")}
+    ${ehAss(s) && assSituacao(s) === "ativa" && proxRenovacao(s) ? kv("Próxima renovação", esc(fDia(proxRenovacao(s))) + ` <small class="muted">(${diasAte(proxRenovacao(s))} dias)</small>`) : ""}
     ${kv("Aprovada por", s.decidido_em && s.status !== "reprovada" ? `${esc(nomeEmail(s.decidido_por))}<br><small class="muted">${esc(fDH(s.decidido_em))}</small>` : "")}
     ${kv("Pedido", esc(s.pedido))}${kv("Previsão de chegada", s.previsao ? esc(fDia(s.previsao)) : "")}
-    ${kv("Valor pago", s.valor_pago != null ? `<b>${esc(brl(s.valor_pago))}</b>${s.valor_estimado != null && Number(s.valor_pago) !== Number(s.valor_estimado) ? `<br><small class="${Number(s.valor_pago) > Number(s.valor_estimado) ? "" : "muted"}" style="${Number(s.valor_pago) > Number(s.valor_estimado) ? "color:var(--danger);font-weight:700" : ""}">${Number(s.valor_pago) > Number(s.valor_estimado) ? "+" : ""}${esc(brl(s.valor_pago - s.valor_estimado))} do estimado</small>` : ""}` : "")}
+    ${kv("Valor pago", s.valor_pago != null ? `<b>${esc(brl(s.valor_pago) + POR[s.recorrencia || "unica"])}</b>${s.valor_estimado != null && Number(s.valor_pago) !== Number(s.valor_estimado) ? `<br><small class="${Number(s.valor_pago) > Number(s.valor_estimado) ? "" : "muted"}" style="${Number(s.valor_pago) > Number(s.valor_estimado) ? "color:var(--danger);font-weight:700" : ""}">${Number(s.valor_pago) > Number(s.valor_estimado) ? "+" : ""}${esc(brl(s.valor_pago - s.valor_estimado))} do estimado</small>` : ""}` : "")}
     ${kv("Data da compra", s.data_compra ? esc(fDia(s.data_compra)) : "")}${kv("Nota fiscal", esc(s.nf_numero))}
     ${kv("Finalizada", s.conferido_em ? `${esc(nomeEmail(s.conferido_por))}<br><small class="muted">${esc(fDH(s.conferido_em))}</small>` : "")}
   </div>
@@ -416,6 +442,7 @@ async function verArquivo(path) {
 }
 
 // formulário de nova / edição
+const REC_TXT = { unica: "Pagamento uma vez só.", mensal: "Cobrança todo mês (ex.: software, serviço). Informe nos itens o valor por mês.", anual: "Cobrança uma vez por ano (ex.: licença anual). Informe nos itens o valor por ano." };
 let FORM = null;
 function formHTML() {
   const s = FORM.id ? sol(FORM.id) : null, d = FORM.d;
@@ -435,6 +462,11 @@ function formHTML() {
         <label><input type="radio" name="s_quem" value="solicitante" ${d.quem_compra === "solicitante" ? "checked" : ""}>Eu mesmo compro</label></div>
         <small><b>Financeiro/Compras</b>: depois da aprovação, os setores Financeiro ou Compras fazem o pedido. <b>Eu mesmo compro</b>: você compra (cartão corporativo, reembolso…). Nos dois casos, você anexa o comprovante quando receber. O Financeiro pode mudar isso na aprovação.</small></div>
       <label class="fld full"><span>Justificativa <i>*</i></span><textarea id="s_just" required maxlength="2000" placeholder="Por que a compra é necessária?">${esc(d.justificativa)}</textarea></label>
+      <div class="fld full"><span>Tipo de compra <i>*</i></span><div class="seg" role="radiogroup">
+        <label><input type="radio" name="s_rec" value="unica" ${!d.recorrencia || d.recorrencia === "unica" ? "checked" : ""}>Compra única</label>
+        <label><input type="radio" name="s_rec" value="mensal" ${d.recorrencia === "mensal" ? "checked" : ""}>Assinatura mensal</label>
+        <label><input type="radio" name="s_rec" value="anual" ${d.recorrencia === "anual" ? "checked" : ""}>Assinatura anual</label></div>
+        <small id="s_rec_txt">${REC_TXT[d.recorrencia || "unica"]}</small></div>
       <label class="check full"><input type="checkbox" id="s_urg" ${d.urgente ? "checked" : ""}> É urgente</label>
     </div>
     <div><div class="panelhead" style="margin-bottom:8px"><h2 style="font-size:16px;color:var(--heading);margin:0">Itens</h2><button type="button" class="btn sm" data-act="additem">${ICON("plus")}Adicionar item</button></div>
@@ -446,7 +478,7 @@ function formHTML() {
         <button type="button" class="ib" data-act="rmitem" data-k="${k}" title="Remover item" aria-label="Remover item ${k + 1}" ${d.itens.length < 2 ? "disabled" : ""}>${ICON("trash")}</button>
         <label class="fld lk"><span>Link ou observação</span><input data-f="link" maxlength="600" value="${esc(i.link)}" placeholder="https://… (opcional)"></label>
       </div>`).join("")}</div>
-      <p class="itot" id="s_tot">${tot ? "Total estimado: " + brl(tot) : ""}</p></div>
+      <p class="itot" id="s_tot">${tot ? "Total estimado: " + brl(tot) + POR[d.recorrencia || "unica"] : ""}</p></div>
     <div><span class="fld"><span>Orçamentos (opcional)</span></span>
       ${s && orcamentos(s).length ? `<div class="files" style="margin:6px 0">${orcamentos(s).map(a => `<div class="file">${ICON("file")}<span class="nm"><button type="button" data-act="verarq" data-path="${esc(a.caminho)}">${esc(a.nome)}</button></span><small>${esc(tam(a.tamanho))}</small><button type="button" class="ib" data-act="rmarq" data-aid="${a.id}" data-id="${s.id}" data-form="1" aria-label="Remover">${ICON("trash")}</button></div>`).join("")}</div>` : ""}
       <label class="drop" style="margin-top:6px">${ICON("clip")} <span id="s_arqs">${FORM.files.length ? esc(FORM.files.map(f => f.name).join(", ")) : "Clique para anexar orçamentos, prints ou PDFs"}</span><input type="file" id="s_files" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.xml,.doc,.docx,.xls,.xlsx"></label></div>
@@ -457,14 +489,14 @@ function lerItensForm() {
   document.querySelectorAll(".itrow").forEach(r => { const k = +r.dataset.k; r.querySelectorAll("[data-f]").forEach(i => { FORM.d.itens[k][i.dataset.f] = i.value; }); });
   const g = id => $(id) ? $(id).value : "";
   Object.assign(FORM.d, { titulo: g("s_titulo"), setor: g("s_setor"), empresa: g("s_empresa"), necessario_ate: g("s_ate"), forma_pagamento: g("s_forma"), justificativa: g("s_just"),
-    urgente: $("s_urg") ? $("s_urg").checked : false, quem_compra: (document.querySelector("input[name=s_quem]:checked") || {}).value || "financeiro" });
+    urgente: $("s_urg") ? $("s_urg").checked : false, recorrencia: (document.querySelector("input[name=s_rec]:checked") || {}).value || "unica", quem_compra: (document.querySelector("input[name=s_quem]:checked") || {}).value || "financeiro" });
 }
 function abrirForm(id) {
   const s = id ? sol(id) : null;
   const novoItem = () => ({ item: "", quantidade: 1, valor_unit: "", fornecedor: "", link: "" });
-  FORM = { id: s ? s.id : null, files: [], d: s ? { titulo: s.titulo, setor: s.setor, empresa: s.empresa, necessario_ate: s.necessario_ate, forma_pagamento: s.forma_pagamento, justificativa: s.justificativa, urgente: s.urgente, quem_compra: s.quem_compra,
+  FORM = { id: s ? s.id : null, files: [], d: s ? { titulo: s.titulo, setor: s.setor, empresa: s.empresa, necessario_ate: s.necessario_ate, forma_pagamento: s.forma_pagamento, justificativa: s.justificativa, urgente: s.urgente, recorrencia: s.recorrencia || "unica", quem_compra: s.quem_compra,
     itens: itensDe(s).map(i => ({ item: i.item, quantidade: i.quantidade, valor_unit: i.valor_unit ?? "", fornecedor: i.fornecedor, link: [i.link, i.obs].filter(Boolean).join(" · ") })) }
-    : { titulo: "", setor: S.eu.setor && lista("setores").includes(S.eu.setor) ? S.eu.setor : (S.eu.setor || ""), empresa: "", necessario_ate: "", forma_pagamento: "", justificativa: "", urgente: false, quem_compra: "financeiro", itens: [novoItem()] } };
+    : { titulo: "", setor: S.eu.setor && lista("setores").includes(S.eu.setor) ? S.eu.setor : (S.eu.setor || ""), empresa: "", necessario_ate: "", forma_pagamento: "", justificativa: "", urgente: false, recorrencia: "unica", quem_compra: "financeiro", itens: [novoItem()] } };
   FORM.novoItem = novoItem;
   openModal(formHTML());
 }
@@ -636,6 +668,53 @@ async function cancelar(f) {
   closeModal(); S.det = null; await recarregar(); toast("Solicitação cancelada.");
 }
 
+// assinaturas
+function assinaturasHTML() {
+  const q = norm(S.q), todas = S.sols.filter(ehAss);
+  const ativas = todas.filter(s => assSituacao(s) === "ativa");
+  const l = todas.filter(s => (S.fAss === "todas" || assSituacao(s) === S.fAss) && (!q || norm([cod(s.id), s.titulo, s.solicitante_nome, s.setor, s.empresa, ...itensDe(s).map(i => i.item + " " + i.fornecedor)].join(" ")).includes(q)))
+    .sort((a, b) => { const o = { ativa: 0, contratacao: 1, encerrada: 2, fora: 3 }, ra = assSituacao(a) === "ativa" ? proxRenovacao(a) : null, rb = assSituacao(b) === "ativa" ? proxRenovacao(b) : null;
+      return o[assSituacao(a)] - o[assSituacao(b)] || String(ra || "9").localeCompare(String(rb || "9")) || a.id - b.id; });
+  const mes = ativas.reduce((a, s) => a + custoMes(s), 0), ano = ativas.reduce((a, s) => a + custoAno(s), 0);
+  const ren30 = ativas.filter(s => { const r = proxRenovacao(s); return s.recorrencia === "anual" && r && diasAte(r) <= 30; });
+  const porSetor = {}; ativas.forEach(s => { const k = s.setor || "Sem setor"; porSetor[k] = (porSetor[k] || 0) + custoMes(s); });
+  const ss = Object.entries(porSetor).sort((a, b) => b[1] - a[1]), max = ss.length ? ss[0][1] : 0;
+  const sit = s => ({ ativa: `<span class="pill st-ok">Ativa</span>`, encerrada: `<span class="pill st-desc">Encerrada ${esc(fDia(s.assinatura_encerrada_em))}</span>`, contratacao: `<span class="pill st-sol">Em contratação</span>`, fora: pill(s) })[assSituacao(s)];
+  const tile = (ic, t, n, mini, hot) => `<div class="card tile ${hot ? "hot" : ""}" style="cursor:default"><div class="ti">${ICON(ic)}${esc(t)}</div><div class="big">${n}</div><div class="mini">${esc(mini)}</div></div>`;
+  return `<div class="head"><div><h1>Assinaturas</h1><div class="sub">Compras recorrentes: mensais e anuais</div></div></div>
+  <div class="tiles">
+    ${tile("undo", "Ativas", ativas.length, `${ativas.filter(s => s.recorrencia === "mensal").length} mensais · ${ativas.filter(s => s.recorrencia === "anual").length} anuais`)}
+    ${tile("cart", "Custo por mês", brl(mes) || "R$ 0,00", "anuais divididas por 12")}
+    ${tile("list", "Custo por ano", brl(ano) || "R$ 0,00", "mensais × 12 + anuais")}
+    ${tile("clock", "Anuais renovando em 30 dias", ren30.length, ren30.length ? brl(total(ren30)) : "nenhuma", ren30.length > 0)}
+  </div>
+  ${ss.length ? `<section class="card panel"><div class="panelhead"><h2>Custo mensal por setor</h2></div>${ss.map(([k, v]) => `<div class="bar"><span>${esc(k)}</span><div class="tr"><span style="width:${max ? Math.max(3, v / max * 100) : 0}%"></span></div><b>${esc(brl(v))}</b></div>`).join("")}</section>` : ""}
+  <div class="card filters"><label class="search">${ICON("search")}<input id="fq" placeholder="Buscar por número, título, item, fornecedor, setor…" value="${esc(S.q)}" aria-label="Buscar"></label>
+    <select id="fas" aria-label="Situação da assinatura"><option value="ativa" ${S.fAss === "ativa" ? "selected" : ""}>Ativas</option><option value="contratacao" ${S.fAss === "contratacao" ? "selected" : ""}>Em contratação</option><option value="encerrada" ${S.fAss === "encerrada" ? "selected" : ""}>Encerradas</option><option value="todas" ${S.fAss === "todas" ? "selected" : ""}>Todas</option></select></div>
+  ${l.length ? `<div class="card tablewrap"><table style="min-width:980px"><thead><tr><th>Nº</th><th>Assinatura</th><th>Solicitante</th><th>Tipo</th><th class="num">Valor</th><th class="num">Por mês</th><th>Início</th><th>Próxima renovação</th><th>Situação</th></tr></thead><tbody>
+    ${l.map(s => { const r = assSituacao(s) === "ativa" ? proxRenovacao(s) : null, d = r ? diasAte(r) : null;
+      return `<tr class="click" data-act="abrir" data-id="${s.id}"><td><b>${cod(s.id)}</b></td><td><b style="color:var(--heading)">${esc(s.titulo)}</b><br><small class="muted">${esc(itensDe(s).map(i => i.item + (i.fornecedor ? ` (${i.fornecedor})` : "")).join(", "))}</small></td>
+        <td>${esc(s.solicitante_nome)}<br><small class="muted">${esc([s.setor, s.empresa].filter(Boolean).join(" · "))}</small></td><td>${s.recorrencia === "mensal" ? "Mensal" : "Anual"}</td>
+        <td class="num">${valorRef(s) != null ? esc(brl(valorRef(s)) + POR[s.recorrencia]) : `<span class="muted">—</span>`}</td><td class="num">${valorRef(s) != null ? esc(brl(custoMes(s))) : ""}</td>
+        <td>${esc(fDia(assInicio(s)) || "—")}</td><td>${r ? `<span style="${s.recorrencia === "anual" && d <= 30 ? "color:var(--danger);font-weight:800" : ""}">${esc(fDia(r))}</span><br><small class="muted">em ${d} ${d === 1 ? "dia" : "dias"}</small>` : `<span class="muted">—</span>`}</td><td>${sit(s)}</td></tr>`; }).join("")}
+  </tbody></table></div>` : vazio(S.fAss === "ativa" ? "Nenhuma assinatura ativa" : "Nada encontrado", "Quando alguém pedir uma assinatura mensal ou anual e a compra for feita, ela aparece aqui com o custo e a próxima renovação.")}
+  <p class="muted" style="font-size:13px;margin-top:10px">A assinatura fica ativa a partir da compra e até o Financeiro encerrar. O valor é o pago no comprovante (ou o estimado, enquanto não houver). Anuais avisam o Financeiro por e-mail 30 e 7 dias antes da renovação.</p>`;
+}
+function encerrarAssModal(id) {
+  const s = sol(id); if (!s) return;
+  openModal(`<h2>Encerrar assinatura ${cod(s.id)}?</h2><form class="f" id="fEncAss" data-id="${s.id}">
+    <p style="margin:0"><b>${esc(s.titulo)}</b> (${esc(REC[s.recorrencia].toLowerCase())}) deixa de contar como ativa a partir da data abaixo. Cancele também no fornecedor, se ainda não cancelou. O solicitante recebe um aviso.</p>
+    <div class="fgrid"><label class="fld"><span>Encerrada em <i>*</i></span><input id="ea_data" type="date" required value="${hoje()}"></label></div>
+    <label class="fld"><span>Motivo <i>*</i></span><input id="ea_mot" required maxlength="300" placeholder="Ex.: não é mais usada / trocamos de ferramenta"></label>
+    <div class="foot"><button type="button" class="btn ghost" data-act="close">Voltar</button><button class="btn danger" id="eaBtn">${ICON("x")}Encerrar assinatura</button></div></form>`, "sm");
+}
+async function encerrarAss(f) {
+  const btn = $("eaBtn"); btn.disabled = true;
+  const { error } = await sb.rpc("fc_encerrar_assinatura", { p_id: +f.dataset.id, p_data: $("ea_data").value || null, p_motivo: $("ea_mot").value });
+  if (error) { btn.disabled = false; erro(error); return; }
+  closeModal(); S.det = null; await recarregar(); toast("Assinatura encerrada.");
+}
+
 // excluir (administrador): testes ou lançadas por engano
 function excluirModal(id) {
   const s = sol(id); if (!s) return;
@@ -689,10 +768,10 @@ async function salvarListas() {
 }
 function exportar() {
   const l = filtrar(S.sols), sep = ";";
-  const cab = ["Nº", "Aberta em", "Solicitante", "E-mail", "Setor", "Empresa", "Título", "Itens", "Justificativa", "Urgente", "Necessário até", "Quem compra", "Forma de pagamento", "Valor estimado", "Situação", "Decidido por", "Decidido em", "Obs. decisão", "Pedido", "Previsão", "Valor pago", "Data da compra", "NF", "Finalizada em", "Conferido por"];
+  const cab = ["Nº", "Aberta em", "Solicitante", "E-mail", "Setor", "Empresa", "Título", "Itens", "Justificativa", "Urgente", "Necessário até", "Quem compra", "Tipo", "Forma de pagamento", "Valor estimado", "Situação", "Decidido por", "Decidido em", "Obs. decisão", "Pedido", "Previsão", "Valor pago", "Data da compra", "NF", "Finalizada em", "Conferido por"];
   const n = v => v == null || v === "" ? "" : String(Number(v).toFixed(2)).replace(".", ",");
   const linhas = l.map(s => [cod(s.id), fDH(s.criado_em), s.solicitante_nome, s.solicitante_email, s.setor, s.empresa, s.titulo, itensDe(s).map(i => `${i.quantidade}x ${i.item}${i.fornecedor ? ` (${i.fornecedor})` : ""}`).join(" | "), s.justificativa, s.urgente ? "Sim" : "Não", fDia(s.necessario_ate),
-    s.quem_compra === "financeiro" ? "Financeiro/Compras" : "Solicitante", s.forma_pagamento, n(s.valor_estimado), (ST[s.status] || [s.status])[0], s.decidido_por ? nomeEmail(s.decidido_por) : "", fDH(s.decidido_em), s.decisao_obs, s.pedido, fDia(s.previsao), n(s.valor_pago), fDia(s.data_compra), s.nf_numero, fDH(s.conferido_em), s.conferido_por ? nomeEmail(s.conferido_por) : ""]);
+    s.quem_compra === "financeiro" ? "Financeiro/Compras" : "Solicitante", REC[s.recorrencia || "unica"] + (s.assinatura_encerrada_em ? ` (encerrada ${fDia(s.assinatura_encerrada_em)})` : ""), s.forma_pagamento, n(s.valor_estimado), (ST[s.status] || [s.status])[0], s.decidido_por ? nomeEmail(s.decidido_por) : "", fDH(s.decidido_em), s.decisao_obs, s.pedido, fDia(s.previsao), n(s.valor_pago), fDia(s.data_compra), s.nf_numero, fDH(s.conferido_em), s.conferido_por ? nomeEmail(s.conferido_por) : ""]);
   const csv = "﻿" + [cab, ...linhas].map(r => r.map(c => { const t = String(c ?? "").replace(/\r?\n/g, " "); return /[";]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; }).join(sep)).join("\r\n");
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })); a.download = `compras-financeiro-${hoje()}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
@@ -716,6 +795,7 @@ document.addEventListener("click", async e => {
     case "devolver": conferir(id, false); break;
     case "cancelar": cancelarModal(id); break;
     case "excluir": excluirModal(id); break;
+    case "encerrarass": encerrarAssModal(id); break;
     case "verarq": verArquivo(el.dataset.path); break;
     case "rmarq": removerArquivo(el.dataset.aid, id, !!el.dataset.form); break;
     case "additem": lerItensForm(); FORM.d.itens.push(FORM.novoItem()); reformar(); { const r = document.querySelectorAll(".itrow"); r[r.length - 1].querySelector("input").focus(); } break;
@@ -736,12 +816,12 @@ document.addEventListener("keydown", e => {
 });
 document.addEventListener("submit", e => {
   e.preventDefault(); const f = e.target;
-  ({ fEmail: loginEmail, fCodigo: loginCodigo, fSol: salvarForm, fCompra: salvarCompra, fComp: enviarComprovante, fCanc: cancelar, fExc: excluir, fMembro: salvarMembro,
+  ({ fEmail: loginEmail, fCodigo: loginCodigo, fSol: salvarForm, fCompra: salvarCompra, fComp: enviarComprovante, fCanc: cancelar, fExc: excluir, fEncAss: encerrarAss, fMembro: salvarMembro,
      fDec: () => decidir(f.dataset.id, true), fConf: () => conferir(f.dataset.id, true) }[f.id] || (() => {}))(f);
 });
 document.addEventListener("input", e => {
   if (e.target.id === "fq") { S.q = e.target.value; render(); }
-  if (e.target.closest && e.target.closest(".itrow") && FORM) { lerItensForm(); const t = FORM.d.itens.reduce((a, i) => a + (parseFloat(i.valor_unit) || 0) * (parseInt(i.quantidade) || 1), 0); $("s_tot").textContent = t ? "Total estimado: " + brl(t) : ""; }
+  if (e.target.closest && e.target.closest(".itrow") && FORM) { lerItensForm(); const t = FORM.d.itens.reduce((a, i) => a + (parseFloat(i.valor_unit) || 0) * (parseInt(i.quantidade) || 1), 0); $("s_tot").textContent = t ? "Total estimado: " + brl(t) + POR[FORM.d.recorrencia || "unica"] : ""; }
 });
 document.addEventListener("change", e => {
   const t = e.target;
@@ -749,6 +829,9 @@ document.addEventListener("change", e => {
   if (t.id === "fse") { S.fSetor = t.value; render(); }
   if (t.id === "fqm") { S.fQuem = t.value; render(); }
   if (t.id === "ffp") { S.fForma = t.value; render(); }
+  if (t.id === "ftp") { S.fTipo = t.value; render(); }
+  if (t.id === "fas") { S.fAss = t.value; render(); }
+  if (t.name === "s_rec" && FORM) { lerItensForm(); $("s_rec_txt").textContent = REC_TXT[t.value]; const tt = FORM.d.itens.reduce((a, i) => a + (parseFloat(i.valor_unit) || 0) * (parseInt(i.quantidade) || 1), 0); $("s_tot").textContent = tt ? "Total estimado: " + brl(tt) + POR[t.value] : ""; }
   if (t.name === "d_quem" && $("d_quem_txt")) $("d_quem_txt").textContent = QDEC[t.value];
   if (t.id === "s_files" && FORM) { lerItensForm(); FORM.files = [...FORM.files, ...t.files]; $("s_arqs").textContent = FORM.files.map(f => f.name).join(", "); }
   if (t.id === "cp_files" && t.files.length) anexarComprovantes([...t.files]);

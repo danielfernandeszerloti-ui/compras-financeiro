@@ -18,6 +18,15 @@ Endereço: **https://compras.grupozerbini.com.br**
 
 Também é possível cancelar com motivo: o solicitante até a aprovação (ou enquanto ainda não comprou) e o Financeiro a qualquer momento antes de finalizar. Cada passo fica no histórico da solicitação, e os avisos por e-mail saem automaticamente.
 
+## Assinaturas
+
+No formulário, o **Tipo de compra** pode ser compra única, assinatura mensal ou assinatura anual. Nas assinaturas, o valor dos itens é por mês ou por ano.
+
+- A assinatura fica **ativa** a partir da compra e até o Financeiro usar **Encerrar assinatura** (com data e motivo; o solicitante é avisado).
+- Tela **Assinaturas** (Financeiro, administrador e comprador): ativas, custo por mês e por ano, custo mensal por setor, próxima renovação de cada uma, e filtros por situação (ativas, em contratação, encerradas).
+- Renovações anuais: aparecem em "Precisa de atenção" no Painel e o Financeiro recebe e-mail 30 e 7 dias antes (cron `fc-assinaturas-avisos`, todo dia às 8h07).
+- A próxima renovação conta a partir da data da compra informada no comprovante.
+
 ## Telas
 
 - **Minhas solicitações** (todos): o que está em aberto, o que precisa de você e as encerradas.
